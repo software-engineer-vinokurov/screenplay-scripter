@@ -1,0 +1,108 @@
+import threading
+import signal
+import sys
+from .codegen import RecorderSession, MODIFIER_KEYS
+
+try:
+    from pynput import keyboard, mouse
+    PYNPUT_AVAILABLE = True
+except ImportError:
+    PYNPUT_AVAILABLE = False
+
+
+# pynput key name normalizer
+def _key_name(key) -> tuple[str, bool]:
+    """Return (name, is_modifier) for a pynput key."""
+    try:
+        # Special key (e.g. Key.space, Key.cmd)
+        name = key.name  # e.g. 'cmd', 'space', 'ctrl', 'alt'
+        # pynput uses 'alt' for Option key on Mac
+        is_mod = name in MODIFIER_KEYS or name in {'cmd_r', 'ctrl_r', 'alt_r', 'shift_r', 'fn'}
+        # Normalize right-side modifiers
+        name = name.rstrip('_r')  # cmd_r → cmd, etc.
+        name = {'ctrl': 'ctrl', 'alt': 'alt', 'cmd': 'cmd', 'shift': 'shift', 'fn': 'fn'}.get(name, name)
+        return name, is_mod
+    except AttributeError:
+        # Regular key with char
+        try:
+            char = key.char
+            if char is None:
+                return '', False
+            return char, False
+        except AttributeError:
+            return '', False
+
+
+def run_recording(output_path: str, no_timing: bool = False):
+    """Start a recording session. Blocks until Ctrl+C."""
+    if not PYNPUT_AVAILABLE:
+        print("ERROR: pynput not installed. Run: uv add pynput", file=sys.stderr)
+        sys.exit(1)
+
+    session = RecorderSession(output_path, no_timing=no_timing)
+    stop_flag = threading.Event()
+
+    print(f'Ready to record → {output_path}')
+    print('  Ctrl+Opt: toggle recording ON/OFF')
+    print('  Ctrl+C: end session and open script in $EDITOR')
+    print('⏸ PAUSED (recording is OFF)')
+
+    def _signal_handler(sig, frame):
+        stop_flag.set()
+
+    signal.signal(signal.SIGINT, _signal_handler)
+
+    # Track which modifiers are currently pressed for gate detection
+    _active_mods: set[str] = set()
+    _gate_toggle_armed = False
+
+    def on_key_press(key):
+        nonlocal _gate_toggle_armed
+        name, is_mod = _key_name(key)
+        if not name:
+            return
+        if is_mod:
+            _active_mods.add(name)
+            # Check for Ctrl+Opt toggle chord
+            if {'ctrl', 'alt'}.issubset(_active_mods) and not _gate_toggle_armed:
+                _gate_toggle_armed = True
+                session.toggle_gate()
+            session.on_key_press(name, True)
+        else:
+            session.on_key_press(name, False)
+
+    def on_key_release(key):
+        nonlocal _gate_toggle_armed
+        name, is_mod = _key_name(key)
+        if is_mod:
+            _active_mods.discard(name)
+            # Reset toggle arm when chord is released
+            if not {'ctrl', 'alt'}.issubset(_active_mods):
+                _gate_toggle_armed = False
+            session.on_key_release(name, True)
+        else:
+            session.on_key_release(name, False)
+
+    def on_click(x, y, button, pressed):
+        btn = 'right' if button == mouse.Button.right else 'left'
+        session.on_mouse_click(x, y, btn, pressed)
+
+    def on_move(x, y):
+        session.on_mouse_move(x, y)
+
+    def on_scroll(x, y, dx, dy):
+        session.on_scroll(x, y, dx, dy)
+
+    kb_listener = keyboard.Listener(on_press=on_key_press, on_release=on_key_release)
+    ms_listener = mouse.Listener(on_click=on_click, on_move=on_move, on_scroll=on_scroll)
+
+    kb_listener.start()
+    ms_listener.start()
+
+    # Main thread polls stop_flag — never blocks on listener.join() (SIGINT safety)
+    while not stop_flag.is_set():
+        stop_flag.wait(timeout=0.05)
+
+    kb_listener.stop()
+    ms_listener.stop()
+    session.flush_to_file()
