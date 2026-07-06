@@ -15,24 +15,28 @@ motion so every take looks intentional.
 ## Requirements
 
 - macOS
-- Python >= 3.12
-- [`cliclick`](https://github.com/BlueM/cliclick) — `brew install cliclick`
-- [`uv`](https://github.com/astral-sh/uv)
+- [`cliclick`](https://github.com/BlueM/cliclick) 5.1+
 
 ## Install
 
-As a tool (recommended):
+### Homebrew (recommended)
 
 ```sh
-uv tool install --editable .
+brew tap software-engineer-vinokurov/tap
+brew install screenplay-scripter
 ```
 
-Or add to an existing project / run from the repo:
+### uv
 
 ```sh
-uv add screenplay-scripter          # as a dependency
-uv sync                             # from a clone
-uv run scripter --help
+uv tool install screenplay-scripter
+```
+
+Or add to an existing project / run from a clone:
+
+```sh
+uv add screenplay-scripter          # as a project dependency
+uv sync && uv run scripter --help   # from a clone
 ```
 
 ## macOS Accessibility permission
@@ -84,16 +88,16 @@ Preview the exact `cliclick` argv without moving the mouse:
 scripter play demo.py --dry-run
 ```
 
-Override interpolation smoothness (step count per move):
+Override the cliclick easing factor (default 5; higher = slower but more natural):
 
 ```sh
-scripter play demo.py --steps 45
+scripter play demo.py --easing 10
 ```
 
 Environment equivalents (CLI flags take precedence):
 
 - `SCRIPTER_DRY_RUN=1`
-- `SCRIPTER_STEPS=45`
+- `SCRIPTER_EASING=10`
 
 ## DSL reference
 
