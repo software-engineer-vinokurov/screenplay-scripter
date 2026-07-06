@@ -1,3 +1,4 @@
+import math
 import subprocess
 import os
 
@@ -20,7 +21,7 @@ KP_KEYS = {
 
 MODIFIER_KEYS = {'alt','cmd','ctrl','fn','shift'}
 
-_DEFAULT_EASING = 5
+_DEFAULT_EASING = 555
 
 
 def configure(dry_run: bool = False, easing: int | None = None) -> None:
@@ -44,6 +45,13 @@ def run(args: list[str], dry_run: bool = False) -> list[str] | None:
         return args
     subprocess.run(['cliclick'] + args, check=False)
     return None
+
+
+def compute_easing(distance: float) -> int:
+    """Constant-speed easing: factor × 1000 / distance, calibrated so factor == easing at 1000 px.
+    Inverse proportionality means half the distance → 2× easing → same apparent cursor speed."""
+    _, factor = get_config()
+    return max(1, round(factor * 1000 / max(1.0, distance)))
 
 
 def get_cursor_pos() -> tuple[int, int]:

@@ -45,7 +45,7 @@ def test_config_precedence_default_false():
 def test_easing_default():
     backend.configure(dry_run=False, easing=None)
     _, easing = backend.get_config()
-    assert easing == 5
+    assert easing == 555
 
 
 def test_easing_override():

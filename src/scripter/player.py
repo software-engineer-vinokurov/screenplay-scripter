@@ -1,10 +1,11 @@
 import ast
 import sys
+import time
 from pathlib import Path
 
 
 _DSL_NAMES = frozenset([
-    'click', 'right_click', 'drag', 'scroll', 'key', 'type_text', 'sleep', 'move',
+    'click', 'double_click', 'right_click', 'drag', 'scroll', 'key', 'type_text', 'sleep', 'move',
 ])
 
 
@@ -35,27 +36,55 @@ def _warn_non_dsl(source: str, script_path: Path) -> None:
             print(w, file=sys.stderr)
 
 
+def _make_dsl_namespace(script_path: str) -> dict:
+    from scripter import click, double_click, right_click, drag, scroll, key, type_text, sleep, move
+    return {
+        'click': click, 'double_click': double_click, 'right_click': right_click, 'drag': drag,
+        'scroll': scroll, 'key': key, 'type_text': type_text,
+        'sleep': sleep, 'move': move,
+        '__name__': '__main__', '__file__': script_path,
+    }
+
+
 def play_script(script_path: Path) -> None:
     """Execute a scripter DSL script with the current backend configuration."""
     source = script_path.read_text()
-
-    # Warn-only AST scan
     _warn_non_dsl(source, script_path)
-
-    # Compile for file:line tracebacks (not raw runpy)
     try:
         code = compile(source, filename=str(script_path), mode='exec')
     except SyntaxError as e:
         print(f"Syntax error in {script_path}:{e.lineno}: {e.msg}", file=sys.stderr)
         sys.exit(1)
+    exec(code, _make_dsl_namespace(str(script_path)))
 
-    # Build namespace with DSL names pre-bound
-    from scripter import click, right_click, drag, scroll, key, type_text, sleep, move
-    namespace = {
-        'click': click, 'right_click': right_click, 'drag': drag,
-        'scroll': scroll, 'key': key, 'type_text': type_text,
-        'sleep': sleep, 'move': move,
-        '__name__': '__main__', '__file__': str(script_path),
-    }
 
-    exec(code, namespace)
+def play_script_stepped(
+    script_path: Path,
+    on_progress=None,
+    pause_event=None,
+    stop_event=None,
+) -> None:
+    """Execute a script statement-by-statement for review mode."""
+    source = script_path.read_text()
+    _warn_non_dsl(source, script_path)
+    try:
+        tree = ast.parse(source, filename=str(script_path))
+    except SyntaxError as e:
+        print(f"Syntax error in {script_path}:{e.lineno}: {e.msg}", file=sys.stderr)
+        sys.exit(1)
+
+    namespace = _make_dsl_namespace(str(script_path))
+    stmts = tree.body
+    total_lines = source.count('\n') + 1
+
+    for i, stmt in enumerate(stmts):
+        if stop_event and stop_event.is_set():
+            break
+        while pause_event and pause_event.is_set():
+            if stop_event and stop_event.is_set():
+                return
+            time.sleep(0.05)
+        if on_progress:
+            on_progress(i + 1, len(stmts), stmt.lineno, total_lines)
+        code = compile(ast.Module(body=[stmt], type_ignores=[]), str(script_path), 'exec')
+        exec(code, namespace)

@@ -2,7 +2,7 @@ import time
 import pytest
 from scripter.codegen import (
     render_click, render_drag, render_scroll, render_key, render_type_text,
-    RecorderSession,
+    render_double_click, RecorderSession,
 )
 
 
@@ -178,3 +178,46 @@ def test_no_timing_suppresses_sleep():
     s.on_mouse_click(300, 400, 'left', True)
     s.on_mouse_click(300, 400, 'left', False)
     assert not any('sleep' in line for line in s.lines)
+
+
+def test_render_double_click():
+    assert render_double_click(760, 540) == 'double_click(760, 540)'
+
+
+def test_double_click_detected():
+    """Two rapid clicks at the same spot → single double_click() line."""
+    s = RecorderSession('/tmp/test.py', no_timing=True)
+    s.gate_on = True
+    s.on_mouse_click(300, 400, 'left', True)
+    s.on_mouse_click(300, 400, 'left', False)
+    # Second click within threshold
+    s._last_click_time -= 0.1  # make sure it's well within 0.5s
+    s.on_mouse_click(302, 401, 'left', True)
+    s.on_mouse_click(302, 401, 'left', False)
+    assert s.lines == ['double_click(302, 401)']
+
+
+def test_double_click_not_detected_too_slow():
+    """Two clicks too far apart in time → two separate click() lines."""
+    s = RecorderSession('/tmp/test.py', no_timing=True)
+    s.gate_on = True
+    s.on_mouse_click(300, 400, 'left', True)
+    s.on_mouse_click(300, 400, 'left', False)
+    # Push first click time far into the past
+    s._last_click_time -= 1.0
+    s.on_mouse_click(300, 400, 'left', True)
+    s.on_mouse_click(300, 400, 'left', False)
+    assert s.lines.count('click(300, 400)') == 2
+
+
+def test_double_click_not_detected_too_far():
+    """Two clicks close in time but far apart in space → two separate click() lines."""
+    s = RecorderSession('/tmp/test.py', no_timing=True)
+    s.gate_on = True
+    s.on_mouse_click(300, 400, 'left', True)
+    s.on_mouse_click(300, 400, 'left', False)
+    s._last_click_time -= 0.1
+    s.on_mouse_click(400, 500, 'left', True)  # >10px away
+    s.on_mouse_click(400, 500, 'left', False)
+    assert 'click(300, 400)' in s.lines
+    assert 'click(400, 500)' in s.lines

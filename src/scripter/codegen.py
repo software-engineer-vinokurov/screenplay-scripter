@@ -18,6 +18,10 @@ def render_right_click(x: float, y: float) -> str:
     return f'right_click({round(x)}, {round(y)})'
 
 
+def render_double_click(x: float, y: float) -> str:
+    return f'double_click({round(x)}, {round(y)})'
+
+
 def render_drag(start: tuple[float, float], end: tuple[float, float]) -> str:
     return f'drag(({round(start[0])}, {round(start[1])}), ({round(end[0])}, {round(end[1])}))'
 
@@ -47,6 +51,9 @@ class RecorderSession:
     DRAG_THRESHOLD = 5
     # Minimum gap (seconds) to emit a sleep() between events
     SLEEP_THRESHOLD = 0.15
+    # Double-click detection window
+    DOUBLE_CLICK_THRESHOLD = 0.5   # seconds
+    DOUBLE_CLICK_RADIUS = 10       # pixels
 
     def __init__(self, output_path: str, no_timing: bool = False):
         self.output_path = output_path
@@ -64,6 +71,10 @@ class RecorderSession:
 
         # Currently held modifiers (for gate toggle detection)
         self._held_modifiers: set[str] = set()
+
+        # Double-click detection
+        self._last_click_time: float | None = None
+        self._last_click_pos: tuple[int, int] | None = None
 
     def _flush_char_buffer(self):
         if self._char_buffer:
@@ -98,6 +109,14 @@ class RecorderSession:
                 self._append(render_key(sorted(active_mods) + [key_name]))
             else:
                 self._char_buffer.append(key_name)
+        elif key_name == 'space':
+            # Space alone → typed character; space + modifier → key combo (e.g. Cmd+Space)
+            active_mods = self._held_modifiers - EXCLUDED_CHORDS
+            if active_mods:
+                self._flush_char_buffer()
+                self._append(render_key(sorted(active_mods) + ['space']))
+            else:
+                self._char_buffer.append(' ')
         elif key_name in KP_KEYS:
             self._flush_char_buffer()
             active_mods = self._held_modifiers - EXCLUDED_CHORDS
@@ -112,6 +131,13 @@ class RecorderSession:
         if is_modifier and key_name in self._held_modifiers:
             self._held_modifiers.discard(key_name)
 
+    def _remove_last_click_and_sleep(self):
+        """Pop the most recent click() and any immediately preceding sleep() from lines."""
+        while self.lines and self.lines[-1].startswith('sleep('):
+            self.lines.pop()
+        if self.lines and self.lines[-1].startswith('click('):
+            self.lines.pop()
+
     def on_mouse_click(self, x: int, y: int, button: str, pressed: bool):
         """Called on mouse press/release."""
         if not self.gate_on:
@@ -125,12 +151,29 @@ class RecorderSession:
                 if self._moved_significantly:
                     self._flush_char_buffer()
                     self._append(render_drag(self._press_pos, (x, y)))
-                else:
+                    self._last_click_time = None
+                    self._last_click_pos = None
+                elif button == 'right':
                     self._flush_char_buffer()
-                    if button == 'right':
-                        self._append(render_right_click(x, y))
+                    self._append(render_right_click(x, y))
+                    self._last_click_time = None
+                    self._last_click_pos = None
+                else:
+                    now = time.monotonic()
+                    if (self._last_click_time is not None
+                            and now - self._last_click_time < self.DOUBLE_CLICK_THRESHOLD
+                            and math.hypot(x - self._last_click_pos[0], y - self._last_click_pos[1]) < self.DOUBLE_CLICK_RADIUS):
+                        self._flush_char_buffer()
+                        self._remove_last_click_and_sleep()
+                        self.lines.append(render_double_click(x, y))
+                        self.last_event_time = now
+                        self._last_click_time = None
+                        self._last_click_pos = None
                     else:
+                        self._flush_char_buffer()
                         self._append(render_click(x, y))
+                        self._last_click_time = now
+                        self._last_click_pos = (x, y)
                 self._press_pos = None
                 self._last_move_pos = None
 
@@ -161,13 +204,18 @@ class RecorderSession:
             self.lines.append('# --- paused ---')
             print('⏸ PAUSED', flush=True)
 
-    def flush_to_file(self):
-        """Write the generated script to output_path and open $EDITOR."""
+    def write_script(self) -> str:
+        """Write the generated script to output_path and return the path."""
         self._flush_char_buffer()
         header = 'from scripter import *\n\n'
         content = header + '\n'.join(self.lines) + '\n'
         with open(self.output_path, 'w') as f:
             f.write(content)
-        print(f'\nScript written to: {self.output_path}', flush=True)
+        return self.output_path
+
+    def flush_to_file(self):
+        """Write the generated script and open $EDITOR (used in no-menubar mode)."""
+        path = self.write_script()
+        print(f'\nScript written to: {path}', flush=True)
         editor = os.environ.get('EDITOR', 'vi')
-        subprocess.run(shlex.split(editor) + [self.output_path])
+        subprocess.run(f'{editor} {shlex.quote(path)}', shell=True)

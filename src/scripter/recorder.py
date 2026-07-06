@@ -10,17 +10,33 @@ except ImportError:
     PYNPUT_AVAILABLE = False
 
 
-# pynput key name normalizer
+# pynput → cliclick key name translation
+_PYNPUT_TO_CLICLICK = {
+    'enter':     'return',
+    'escape':    'esc',
+    'backspace': 'delete',
+    'delete':    'fwd-delete',
+    'up':        'arrow-up',
+    'down':      'arrow-down',
+    'left':      'arrow-left',
+    'right':     'arrow-right',
+    'page_up':   'page-up',
+    'page_down': 'page-down',
+    'num_lock':  '',   # no cliclick equivalent, drop it
+}
+
+
 def _key_name(key) -> tuple[str, bool]:
     """Return (name, is_modifier) for a pynput key."""
     try:
         # Special key (e.g. Key.space, Key.cmd)
         name = key.name  # e.g. 'cmd', 'space', 'ctrl', 'alt'
-        # pynput uses 'alt' for Option key on Mac
         is_mod = name in MODIFIER_KEYS or name in {'cmd_r', 'ctrl_r', 'alt_r', 'shift_r', 'fn'}
         # Normalize right-side modifiers
-        name = name.rstrip('_r')  # cmd_r → cmd, etc.
+        name = name.removesuffix('_r')  # cmd_r → cmd, etc.
         name = {'ctrl': 'ctrl', 'alt': 'alt', 'cmd': 'cmd', 'shift': 'shift', 'fn': 'fn'}.get(name, name)
+        # Translate pynput names to cliclick names
+        name = _PYNPUT_TO_CLICLICK.get(name, name)
         return name, is_mod
     except AttributeError:
         # Regular key with char
@@ -33,8 +49,8 @@ def _key_name(key) -> tuple[str, bool]:
             return '', False
 
 
-def run_recording(output_path: str, no_timing: bool = False):
-    """Start a recording session. Blocks until Ctrl+C."""
+def run_recording(output_path: str, no_timing: bool = False, use_menubar: bool = True):
+    """Start a recording session. Blocks until stopped."""
     if not PYNPUT_AVAILABLE:
         print("ERROR: pynput not installed. Run: uv add pynput", file=sys.stderr)
         sys.exit(1)
@@ -44,7 +60,10 @@ def run_recording(output_path: str, no_timing: bool = False):
 
     print(f'Ready to record → {output_path}')
     print('  Ctrl+Opt: toggle recording ON/OFF')
-    print('  Ctrl+C: end session and open script in $EDITOR')
+    if use_menubar:
+        print('  Menu bar: "Stop & Edit" to finish, "Quit (discard)" to abort')
+    else:
+        print('  Ctrl+C: end session and open script in $EDITOR')
     print('⏸ PAUSED (recording is OFF)')
 
     def _signal_handler(sig, frame):
@@ -99,7 +118,13 @@ def run_recording(output_path: str, no_timing: bool = False):
     kb_listener.start()
     ms_listener.start()
 
-    # Main thread polls stop_flag — never blocks on listener.join() (SIGINT safety)
+    if use_menubar:
+        from .menubar import RUMPS_AVAILABLE, run_with_menubar
+        if RUMPS_AVAILABLE:
+            run_with_menubar(session, kb_listener, ms_listener)
+            return  # menubar app handles stop + write + editor
+
+    # Fallback: main thread polls stop_flag — never blocks on listener.join() (SIGINT safety)
     while not stop_flag.is_set():
         stop_flag.wait(timeout=0.05)
 
