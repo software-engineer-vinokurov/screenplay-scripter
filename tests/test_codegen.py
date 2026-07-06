@@ -153,6 +153,21 @@ def test_timing_gap_emits_sleep():
     assert any('sleep(0.25)' in line for line in s.lines)
 
 
+def test_toggle_gate_comments():
+    s = RecorderSession('/tmp/test.py', no_timing=True)
+    # First open: "recording started"
+    s.toggle_gate()
+    assert s.lines[0] == '# --- recording started ---'
+    s.on_mouse_click(100, 200, 'left', True)
+    s.on_mouse_click(100, 200, 'left', False)
+    # Pause
+    s.toggle_gate()
+    assert s.lines[-1] == '# --- paused ---'
+    # Resume: "resumed"
+    s.toggle_gate()
+    assert s.lines[-1] == '# --- resumed ---'
+
+
 def test_no_timing_suppresses_sleep():
     s = make_session(no_timing=True)
     s._fake_time = 0.0

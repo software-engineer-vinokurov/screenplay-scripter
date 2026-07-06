@@ -154,9 +154,11 @@ class RecorderSession:
         self._flush_char_buffer()
         self.gate_on = not self.gate_on
         if self.gate_on:
+            self.lines.append('# --- resumed ---' if self.lines else '# --- recording started ---')
             self.last_event_time = time.monotonic()
             print('● RECORDING', flush=True)
         else:
+            self.lines.append('# --- paused ---')
             print('⏸ PAUSED', flush=True)
 
     def flush_to_file(self):
