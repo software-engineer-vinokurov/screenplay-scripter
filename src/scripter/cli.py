@@ -30,9 +30,12 @@ def play(
     script: Path = typer.Argument(..., help='Python script file to play'),
     dry_run: bool = typer.Option(False, '--dry-run', help='Print cliclick argv without executing'),
     easing: Optional[int] = typer.Option(None, '--easing', help='cliclick easing factor at 1000 px (default: 555)'),
-    review: bool = typer.Option(False, '--review', help='Show menu bar progress indicator; Ctrl+Opt to pause/resume'),
+    review: bool = typer.Option(False, '--review', help='Show menu bar progress indicator with Previous Pauses; Ctrl+Opt to pause/resume'),
 ):
-    """Play back a recorded script with smooth mouse movement via cliclick easing."""
+    """Play back a recorded script with smooth mouse movement via cliclick easing.
+
+    Ctrl+Opt stops playback at any time (pause/resume in --review mode).
+    """
     if not script.exists():
         typer.echo(f'Error: script not found: {script}', err=True)
         raise typer.Exit(1)
@@ -50,5 +53,6 @@ def play(
         from .player import play_script_stepped
         run_with_review_menubar(script, lambda **kw: play_script_stepped(script, **kw))
     else:
-        from .player import play_script
-        play_script(script)
+        from .player import play_script_stepped
+        from .menubar import run_with_killswitch
+        run_with_killswitch(lambda **kw: play_script_stepped(script, **kw))

@@ -291,6 +291,11 @@ class ReviewMenuBarApp(rumps.App):
 
 def run_with_review_menubar(script_path, play_fn) -> None:
     """Run the player with a menu-bar progress indicator and Ctrl+Opt pause/resume."""
+    _name = script_path.name
+    _ln_play  = f'▶ Playing {_name}  —  Ctrl+Opt: pause/resume'
+    _ln_pause = f'⏸ Paused  {_name}  —  Ctrl+Opt: pause/resume'
+    print(_ln_play, end='', flush=True)
+
     from pynput import keyboard as kb
 
     pause_event = threading.Event()
@@ -309,6 +314,8 @@ def run_with_review_menubar(script_path, play_fn) -> None:
             if {'ctrl', 'alt'}.issubset(_active_mods) and not _toggle_armed:
                 _toggle_armed = True
                 app.toggle_pause_flag()
+                status = _ln_pause if app._pause_event.is_set() else _ln_play
+                print(f'\r{status}', end='', flush=True)
         except AttributeError:
             pass
 
@@ -334,6 +341,7 @@ def run_with_review_menubar(script_path, play_fn) -> None:
     t.start()
 
     app.run()
+    print(flush=True)  # terminate the status line
 
     if not app._done:
         app._done = True
@@ -341,6 +349,54 @@ def run_with_review_menubar(script_path, play_fn) -> None:
 
     kb_listener.stop()
     t.join(timeout=2)
+
+
+def run_with_killswitch(play_fn) -> None:
+    """Run the player with a Ctrl+Opt kill-switch that aborts playback.
+
+    No menu bar required.  The player runs on the main thread; a background
+    pynput listener sets stop_event the moment Ctrl+Opt is pressed.
+    """
+    _ln_play = '▶ Playing  —  Ctrl+Opt: stop'
+    _ln_stop = '⏹ Stopped  —  Ctrl+Opt: stop'
+    print(_ln_play, end='', flush=True)
+
+    from pynput import keyboard as kb
+
+    stop_event   = threading.Event()
+    _active_mods = set()
+    _armed       = False
+
+    def on_key_press(key):
+        nonlocal _armed
+        try:
+            name = key.name.removesuffix('_r')
+            if name in ('ctrl', 'alt'):
+                _active_mods.add(name)
+            if {'ctrl', 'alt'}.issubset(_active_mods) and not _armed:
+                _armed = True
+                stop_event.set()
+                print(f'\r{_ln_stop}', end='', flush=True)
+        except AttributeError:
+            pass
+
+    def on_key_release(key):
+        nonlocal _armed
+        try:
+            name = key.name.removesuffix('_r')
+            _active_mods.discard(name)
+            if not {'ctrl', 'alt'}.issubset(_active_mods):
+                _armed = False
+        except AttributeError:
+            pass
+
+    kb_listener = kb.Listener(on_press=on_key_press, on_release=on_key_release)
+    kb_listener.start()
+    try:
+        play_fn(stop_event=stop_event)
+    finally:
+        print(flush=True)  # terminate the status line
+        kb_listener.stop()
 
 
 def run_with_menubar(session, kb_listener, ms_listener):

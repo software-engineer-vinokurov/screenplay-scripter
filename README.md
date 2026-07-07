@@ -105,14 +105,53 @@ scripter record demo.py --no-timing
 scripter play demo.py
 ```
 
-Show a **menu bar progress indicator** and support pause/resume:
+The terminal shows a live status line while the script runs:
+
+```
+▶ Playing  —  Ctrl+Opt: stop
+```
+
+Press **Ctrl+Opt** at any time to abort; the line updates in place:
+
+```
+⏹ Stopped  —  Ctrl+Opt: stop
+```
+
+Show a **menu bar progress indicator** and enable pause/resume:
 
 ```sh
 scripter play demo.py --review
 ```
 
-The `--review` menu bar shows `▶ 12/87` (current source line / total lines).
-Press **Ctrl+Opt** to pause or resume. Click the indicator for a Stop option.
+The terminal status line now reads:
+
+```
+▶ Playing demo.py  —  Ctrl+Opt: pause/resume
+```
+
+Pressing **Ctrl+Opt** toggles it between playing and paused:
+
+```
+⏸ Paused  demo.py  —  Ctrl+Opt: pause/resume
+```
+
+The `--review` menu bar shows `▶ 12/87` (current source line / total lines) and
+includes a **Previous Pauses** submenu. As `sleep()` calls are executed, they
+appear in the submenu (newest first, up to 10). Clicking an entry toggles it
+between active and commented-out directly in the script file — no editor needed:
+
+```
+Previous Pauses
+  7.38          ← click to comment out: becomes # 7.38
+  # 1.00        ← click again to uncomment
+  0.25
+```
+
+Commented-out sleeps from a previous session are remembered and appear in the
+submenu as soon as the player walks past their line in the script, so you can
+toggle them without restarting from scratch.
+
+Click the indicator itself for a **Stop** menu item.
 
 Preview the exact `cliclick` argv without moving the mouse:
 
@@ -169,6 +208,10 @@ typed with `t:`.
 **Double-clicks** are detected automatically during recording: two left-clicks
 within 0.5 s and 10 px of each other are collapsed into a single
 `double_click()` call.
+
+**Capital letters** typed while Shift is held are captured directly into
+`type_text(...)` rather than emitted as `key('shift', 'X')` combos, so a
+sentence like "Nice descent" records as one `type_text('Nice descent')` call.
 
 **Space** typed in a text field is captured as part of `type_text(...)`, not as
 a separate `key('space')`. Space combined with a modifier (e.g. Cmd+Space for
