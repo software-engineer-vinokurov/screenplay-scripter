@@ -44,7 +44,9 @@ def drag(start: tuple[float, float], end: tuple[float, float]) -> None:
     dry_run, _ = get_config()
     x0, y0 = round(start[0]), round(start[1])
     x1, y1 = round(end[0]), round(end[1])
-    easing = compute_easing(math.hypot(x1 - x0, y1 - y0))
+    cx, cy = (0, 0) if dry_run else get_cursor_pos()
+    # Easing covers the full path: approach to drag start + drag itself
+    easing = compute_easing(math.hypot(x0 - cx, y0 - cy) + math.hypot(x1 - x0, y1 - y0))
     argv = ['-e', str(easing), f'dd:{x0},{y0}', f'du:{x1},{y1}']
     if dry_run:
         print(f"[DRY-RUN] cliclick {' '.join(argv)}")

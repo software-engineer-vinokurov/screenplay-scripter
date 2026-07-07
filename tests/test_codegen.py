@@ -221,3 +221,49 @@ def test_double_click_not_detected_too_far():
     s.on_mouse_click(400, 500, 'left', False)
     assert 'click(300, 400)' in s.lines
     assert 'click(400, 500)' in s.lines
+
+
+def test_shift_letter_buffers_not_key_combo():
+    """Shift+letter → char appended to buffer, not key('shift', X)."""
+    s = make_session()
+    s.on_key_press('shift', True)
+    s.on_key_press('N', False)
+    s.on_key_release('shift', True)
+    s._flush_char_buffer()
+    assert "type_text('N')" in s.lines
+    assert not any('key(' in line for line in s.lines)
+
+
+def test_shift_letter_coalesces_with_following_text():
+    """Shift+char followed by lowercase typing → single type_text."""
+    s = make_session(no_timing=True)
+    s.on_key_press('shift', True)
+    s.on_key_press('N', False)
+    s.on_key_release('shift', True)
+    for ch in 'ice descent':
+        s.on_key_press(ch, False)
+    s._flush_char_buffer()
+    assert "type_text('Nice descent')" in s.lines
+    assert not any('key(' in line for line in s.lines)
+
+
+def test_shift_letter_repeated_pattern():
+    """Repeated shift+char / text sequences coalesce into one type_text."""
+    s = make_session(no_timing=True)
+    for _ in range(2):
+        s.on_key_press('shift', True)
+        s.on_key_press('N', False)
+        s.on_key_release('shift', True)
+        for ch in 'ice descent':
+            s.on_key_press(ch, False)
+    s._flush_char_buffer()
+    assert "type_text('Nice descentNice descent')" in s.lines
+
+
+def test_shift_non_printable_still_key_combo():
+    """Shift+non-printable (e.g. tab) is still emitted as key('shift', 'tab')."""
+    s = make_session(no_timing=True)
+    s.on_key_press('shift', True)
+    s.on_key_press('tab', False)  # tab is in KP_KEYS, not printable single char
+    s.on_key_release('shift', True)
+    assert any("key('shift', 'tab')" in line for line in s.lines)

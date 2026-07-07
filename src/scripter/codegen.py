@@ -108,7 +108,10 @@ class RecorderSession:
             active_mods = self._held_modifiers - EXCLUDED_CHORDS
             if self._held_modifiers and not active_mods:
                 return  # only excluded-chord modifiers held (e.g. Ctrl+C)
-            if active_mods:
+            if active_mods == {'shift'}:
+                # pynput already gives us the shifted char (e.g. 'N'); just buffer it
+                self._char_buffer.append(key_name)
+            elif active_mods:
                 self._flush_char_buffer()
                 self._append(render_key(sorted(active_mods) + [key_name]))
             else:

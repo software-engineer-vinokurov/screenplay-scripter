@@ -58,9 +58,22 @@ def play_script(script_path: Path) -> None:
     exec(code, _make_dsl_namespace(str(script_path)))
 
 
+def _get_sleep_duration(stmt) -> float | None:
+    """Return the sleep duration if stmt is a bare sleep() call, else None."""
+    if (isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Call)
+            and isinstance(stmt.value.func, ast.Name)
+            and stmt.value.func.id == 'sleep'
+            and stmt.value.args
+            and isinstance(stmt.value.args[0], ast.Constant)):
+        return float(stmt.value.args[0].value)
+    return None
+
+
 def play_script_stepped(
     script_path: Path,
     on_progress=None,
+    on_sleep=None,
     pause_event=None,
     stop_event=None,
 ) -> None:
@@ -86,5 +99,9 @@ def play_script_stepped(
             time.sleep(0.05)
         if on_progress:
             on_progress(i + 1, len(stmts), stmt.lineno, total_lines)
+        if on_sleep:
+            dur = _get_sleep_duration(stmt)
+            if dur is not None:
+                on_sleep(stmt.lineno, dur)
         code = compile(ast.Module(body=[stmt], type_ignores=[]), str(script_path), 'exec')
         exec(code, namespace)
