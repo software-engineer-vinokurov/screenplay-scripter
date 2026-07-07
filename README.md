@@ -2,8 +2,7 @@
 
 Record and replay macOS mouse/keyboard interactions as human-readable Python
 scripts. Recordings become plain Python DSL files you can hand-edit, then replay
-with smooth, interpolated mouse movement for polished tutorial screen
-recordings.
+with smooth, interpolated mouse movement for polished tutorial screen recordings.
 
 ## Why
 
@@ -60,15 +59,36 @@ Without this permission, recording captures nothing and playback silently fails.
 scripter record demo.py
 ```
 
+A **menu bar indicator** appears while recording:
+
+- Title blinks `● REC` / `○ REC` while active, `○ rec` while paused.
+- Click the indicator to open the menu:
+  - **Stop & Edit** — save the script and open it in `$EDITOR` inside iTerm (or Terminal.app as fallback).
+  - **Quit (discard)** — exit without saving.
+- **Ctrl+C** — stop recording, save, and open the editor.
+
 Controls while recording:
 
 - **Ctrl+Opt** — toggle recording ON/OFF (the gate). The chord itself is never
   written to the script.
-- **Ctrl+C** — end the session, write the script, and open it in `$EDITOR`.
 
 The recorder starts **PAUSED**. Press Ctrl+Opt to arm it, perform your actions,
-press Ctrl+Opt again to pause. Pausing lets you reposition between captured
-segments without polluting the script.
+press Ctrl+Opt again to pause. Section comments are inserted automatically:
+
+```python
+# --- recording started ---
+click(760, 540)
+# --- paused ---
+# --- resumed ---
+type_text('hello')
+```
+
+To disable the menu bar and use terminal-only mode:
+
+```sh
+scripter record demo.py --no-menubar
+# Ctrl+C ends the session, writes the script, and opens $EDITOR
+```
 
 Suppress automatic `sleep()` insertion between events:
 
@@ -82,22 +102,45 @@ scripter record demo.py --no-timing
 scripter play demo.py
 ```
 
+Show a **menu bar progress indicator** and support pause/resume:
+
+```sh
+scripter play demo.py --review
+```
+
+The `--review` menu bar shows `▶ 12/87` (current source line / total lines).
+Press **Ctrl+Opt** to pause or resume. Click the indicator for a Stop option.
+
 Preview the exact `cliclick` argv without moving the mouse:
 
 ```sh
 scripter play demo.py --dry-run
 ```
 
-Override the cliclick easing factor (default 5; higher = slower but more natural):
+Override the easing calibration factor (default 555 — see [Easing](#easing)):
 
 ```sh
-scripter play demo.py --easing 10
+scripter play demo.py --easing 300
 ```
 
 Environment equivalents (CLI flags take precedence):
 
 - `SCRIPTER_DRY_RUN=1`
-- `SCRIPTER_EASING=10`
+- `SCRIPTER_EASING=300`
+
+## Easing
+
+Mouse movement speed is kept **constant across all distances** using inverse
+proportional easing:
+
+```
+easing = factor × 1000 / distance
+```
+
+The `--easing` flag (default `555`) is the cliclick easing coefficient applied
+at exactly 1000 px. Shorter moves get proportionally higher easing so the cursor
+always travels at the same apparent speed. Pass a smaller factor for faster
+overall motion, a larger one for slower.
 
 ## DSL reference
 
@@ -105,19 +148,28 @@ Every generated script begins with `from scripter import *`. Available calls:
 
 | Function                     | Description                                                    |
 | ---------------------------- | ------------------------------------------------------------- |
-| `click(x, y)`                | Move to `(x, y)` with interpolation, then left-click.         |
-| `right_click(x, y)`          | Move to `(x, y)` with interpolation, then right-click.        |
-| `drag(start, end)`           | Press at `start`, drag along interpolated path, release at `end`. |
+| `click(x, y)`                | Move to `(x, y)` with easing, then left-click.                |
+| `double_click(x, y)`         | Move to `(x, y)` with easing, then double-click.              |
+| `right_click(x, y)`          | Move to `(x, y)` with easing, then right-click.               |
+| `drag(start, end)`           | Press at `start`, drag along eased path, release at `end`.    |
 | `scroll(x, y, amount)`       | Position at `(x, y)`, scroll `amount` lines (Quartz wheel).   |
 | `key(*keys)`                 | Key combo. Modifiers (`cmd`, `shift`, `ctrl`, `alt`, `fn`) held around the terminal key, e.g. `key('cmd', 'c')`, `key('return')`. |
-| `type_text(text)`            | Type a literal string.                                         |
-| `sleep(seconds)`             | Pause for `seconds`.                                          |
-| `move(x, y)`                 | Explicitly move the cursor with interpolation (rarely needed; `click` auto-moves). |
+| `type_text(text)`            | Type a literal string (including spaces).                      |
+| `sleep(seconds)`             | Pause for `seconds`.                                           |
+| `move(x, y)`                 | Move the cursor with easing (rarely needed; `click` auto-moves). |
 
-Named keys accepted by `key()` include `return`, `space`, `tab`, `esc`,
+Named keys accepted by `key()`: `return`, `space`, `tab`, `esc`,
 `arrow-up/down/left/right`, `f1`–`f16`, `page-up`, `page-down`, `home`, `end`,
 and more (see `cliclick`'s `kp:` list). Any single character not in that set is
 typed with `t:`.
+
+**Double-clicks** are detected automatically during recording: two left-clicks
+within 0.5 s and 10 px of each other are collapsed into a single
+`double_click()` call.
+
+**Space** typed in a text field is captured as part of `type_text(...)`, not as
+a separate `key('space')`. Space combined with a modifier (e.g. Cmd+Space for
+Spotlight) is recorded as `key('cmd', 'space')`.
 
 ## Editing scripts
 
@@ -125,8 +177,7 @@ Recorded scripts are ordinary Python. Open and tweak them freely:
 
 - Adjust coordinates, reorder actions, or delete takes you do not want.
 - Tune `sleep()` values to change pacing.
-- Add `--steps` at playback for globally smoother/faster motion, or drop in an
-  explicit `move()`.
+- Add an explicit `move()` for a deliberate cursor path between clicks.
 
 Playback runs a **warn-only** AST scan first: non-DSL imports or unexpected
 function calls are reported to stderr but do not block execution, so you can add
@@ -137,6 +188,7 @@ Example hand-edited script:
 ```python
 from scripter import *
 
+# --- recording started ---
 click(760, 540)
 sleep(0.50)
 type_text('hello world')
