@@ -31,10 +31,12 @@ def _key_name(key) -> tuple[str, bool]:
     try:
         # Special key (e.g. Key.space, Key.cmd)
         name = key.name  # e.g. 'cmd', 'space', 'ctrl', 'alt'
-        is_mod = name in MODIFIER_KEYS or name in {'cmd_r', 'ctrl_r', 'alt_r', 'shift_r', 'fn'}
-        # Normalize right-side modifiers
+        # pynput reports the Fn/Globe key as 'function' on macOS
+        is_mod = name in MODIFIER_KEYS or name in {'cmd_r', 'ctrl_r', 'alt_r', 'shift_r', 'fn', 'function'}
+        # Normalize right-side modifiers and pynput-specific names
         name = name.removesuffix('_r')  # cmd_r → cmd, etc.
-        name = {'ctrl': 'ctrl', 'alt': 'alt', 'cmd': 'cmd', 'shift': 'shift', 'fn': 'fn'}.get(name, name)
+        name = {'ctrl': 'ctrl', 'alt': 'alt', 'cmd': 'cmd', 'shift': 'shift',
+                'fn': 'fn', 'function': 'fn'}.get(name, name)
         # Translate pynput names to cliclick names
         name = _PYNPUT_TO_CLICLICK.get(name, name)
         return name, is_mod
@@ -59,7 +61,8 @@ def run_recording(output_path: str, no_timing: bool = False, use_menubar: bool =
     stop_flag = threading.Event()
 
     print(f'Ready to record → {output_path}')
-    print('  Ctrl+Opt: toggle recording ON/OFF')
+    print('  Ctrl+Opt:         toggle recording ON/OFF')
+    print('  Ctrl+Opt+Shift:   insert move() for current cursor position')
     if use_menubar:
         print('  Menu bar: "Stop & Edit" to finish, "Quit (discard)" to abort')
     else:
@@ -71,19 +74,26 @@ def run_recording(output_path: str, no_timing: bool = False, use_menubar: bool =
 
     signal.signal(signal.SIGINT, _signal_handler)
 
-    # Track which modifiers are currently pressed for gate detection
+    # Track which modifiers are currently pressed for chord detection
     _active_mods: set[str] = set()
     _gate_toggle_armed = False
+    _move_marker_armed = False
 
     def on_key_press(key):
-        nonlocal _gate_toggle_armed
+        nonlocal _gate_toggle_armed, _move_marker_armed
         name, is_mod = _key_name(key)
         if not name:
             return
         if is_mod:
             _active_mods.add(name)
-            # Check for Ctrl+Opt toggle chord
-            if {'ctrl', 'alt'}.issubset(_active_mods) and not _gate_toggle_armed:
+            # Ctrl+Opt+Shift → insert move() (checked first, exact match prevents gate toggle)
+            if _active_mods == {'ctrl', 'alt', 'shift'} and not _move_marker_armed:
+                _move_marker_armed = True
+                from .backend import get_cursor_pos
+                x, y = get_cursor_pos()
+                session.on_move_marker(x, y)
+            # Ctrl+Opt (without Shift) → toggle gate
+            elif {'ctrl', 'alt'}.issubset(_active_mods) and 'shift' not in _active_mods and not _gate_toggle_armed:
                 _gate_toggle_armed = True
                 session.toggle_gate()
             session.on_key_press(name, True)
@@ -91,13 +101,14 @@ def run_recording(output_path: str, no_timing: bool = False, use_menubar: bool =
             session.on_key_press(name, False)
 
     def on_key_release(key):
-        nonlocal _gate_toggle_armed
+        nonlocal _gate_toggle_armed, _move_marker_armed
         name, is_mod = _key_name(key)
         if is_mod:
             _active_mods.discard(name)
-            # Reset toggle arm when chord is released
             if not {'ctrl', 'alt'}.issubset(_active_mods):
                 _gate_toggle_armed = False
+            if _active_mods != {'ctrl', 'alt', 'shift'}:
+                _move_marker_armed = False
             session.on_key_release(name, True)
         else:
             session.on_key_release(name, False)

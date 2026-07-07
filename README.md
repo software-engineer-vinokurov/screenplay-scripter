@@ -71,6 +71,9 @@ Controls while recording:
 
 - **Ctrl+Opt** — toggle recording ON/OFF (the gate). The chord itself is never
   written to the script.
+- **Ctrl+Opt+Shift** — insert a `move(x, y)` call for the current cursor
+  position without clicking. Use this to record an explicit cursor path between
+  two clicks. The chord itself is never written to the script.
 
 The recorder starts **PAUSED**. Press Ctrl+Opt to arm it, perform your actions,
 press Ctrl+Opt again to pause. Section comments are inserted automatically:

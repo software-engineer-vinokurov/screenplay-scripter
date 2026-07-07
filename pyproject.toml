@@ -1,6 +1,6 @@
 [project]
 name = "screenplay-scripter"
-version = "0.2.0"
+version = "0.3.0"
 description = "Record and replay macOS mouse/keyboard interactions as human-readable Python scripts"
 requires-python = ">=3.12"
 dependencies = [

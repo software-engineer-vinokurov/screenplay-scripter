@@ -40,6 +40,10 @@ def render_type_text(text: str) -> str:
     return f"type_text('{escaped}')"
 
 
+def render_move(x: float, y: float) -> str:
+    return f'move({round(x)}, {round(y)})'
+
+
 def render_sleep(seconds: float) -> str:
     return f'sleep({seconds:.2f})'
 
@@ -182,6 +186,14 @@ class RecorderSession:
             px, py = self._press_pos
             if math.hypot(x - px, y - py) >= self.DRAG_THRESHOLD:
                 self._moved_significantly = True
+
+    def on_move_marker(self, x: int, y: int):
+        """Emit move() for the current cursor position (triggered by Fn+Shift)."""
+        if not self.gate_on:
+            return
+        self._flush_char_buffer()
+        self._append(render_move(x, y))
+        print(f'→ move({round(x)}, {round(y)})', flush=True)
 
     def on_scroll(self, x: int, y: int, dx: int, dy: int):
         """Called on scroll event. dx is discarded; dy is the line count."""
