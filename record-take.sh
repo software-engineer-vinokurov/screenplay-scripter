@@ -11,7 +11,7 @@ if [ -z "${SCREEN_INDEX:-}" ]; then
     | sed -n '/AVFoundation video devices:/,/AVFoundation audio devices:/p' \
     | grep -E '\[[0-9]+\]' >&2 || true
   echo >&2
-  read -rp "Enter the screen device index to capture: " SCREEN_INDEX
+  read -rp "Enter the screen device index to capture: " SCREEN_INDEX < /dev/tty
   if ! [[ "${SCREEN_INDEX}" =~ ^[0-9]+$ ]]; then
     echo "Error: SCREEN_INDEX must be a number, got '${SCREEN_INDEX}'" >&2
     exit 1

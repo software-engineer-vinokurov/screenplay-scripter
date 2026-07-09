@@ -264,6 +264,12 @@ Run it:
 ./record-take.sh demo.py my-tutorial.mp4
 ```
 
+Or run it directly without saving a copy first:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/software-engineer-vinokurov/screenplay-scripter/main/record-take.sh | bash -s -- demo.py my-tutorial.mp4
+```
+
 ## Known limitations
 
 - **B1 indicator / unfocused terminal**: If the terminal window is not focused,
