@@ -1,6 +1,6 @@
 [project]
 name = "screenplay-scripter"
-version = "0.5.0"
+version = "0.5.1"
 description = "Record and replay macOS mouse/keyboard interactions as human-readable Python scripts"
 readme = "README.md"
 license = "MIT"
