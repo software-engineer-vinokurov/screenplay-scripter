@@ -2,6 +2,25 @@
 name = "screenplay-scripter"
 version = "0.5.0"
 description = "Record and replay macOS mouse/keyboard interactions as human-readable Python scripts"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Aleksandr Vinokurov", email = "dev@aleksandr.vin" },
+]
+keywords = ["macos", "automation", "screen-recording", "cliclick", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: MacOS X",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Multimedia :: Video :: Capture",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Utilities",
+]
 requires-python = ">=3.12"
 dependencies = [
     "typer>=0.12",
@@ -9,6 +28,11 @@ dependencies = [
     "pyobjc-framework-quartz>=10.0",
     "rumps>=0.4",
 ]
+
+[project.urls]
+Homepage = "https://github.com/software-engineer-vinokurov/screenplay-scripter"
+Repository = "https://github.com/software-engineer-vinokurov/screenplay-scripter"
+Issues = "https://github.com/software-engineer-vinokurov/screenplay-scripter/issues"
 
 [project.scripts]
 scripter = "scripter.cli:app"
