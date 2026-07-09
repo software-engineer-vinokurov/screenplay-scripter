@@ -46,3 +46,54 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes
+
+      - name: Update Homebrew tap
+        continue-on-error: true
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN secret not set; skipping Homebrew tap update"
+            exit 1
+          fi
+
+          TAG="$GITHUB_REF_NAME"
+          ARCHIVE_URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
+          curl -sL "$ARCHIVE_URL" -o /tmp/release.tar.gz
+          SHA256="$(shasum -a 256 /tmp/release.tar.gz | cut -d' ' -f1)"
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/software-engineer-vinokurov/homebrew-tap.git" /tmp/homebrew-tap
+
+          cat > /tmp/update_formula.py <<'PYEOF'
+          import re
+          import sys
+          import pathlib
+
+          tag, sha256 = sys.argv[1], sys.argv[2]
+          path = pathlib.Path("/tmp/homebrew-tap/Formula/screenplay-scripter.rb")
+          text = path.read_text()
+          pattern = re.compile(
+              r'url "https://github\.com/software-engineer-vinokurov/screenplay-scripter/archive/refs/tags/v\d+\.\d+\.\d+\.tar\.gz"\n'
+              r'  sha256 "[a-f0-9]{64}"'
+          )
+          replacement = (
+              f'url "https://github.com/software-engineer-vinokurov/screenplay-scripter/archive/refs/tags/{tag}.tar.gz"\n'
+              f'  sha256 "{sha256}"'
+          )
+          new_text, count = pattern.subn(replacement, text)
+          if count != 1:
+              sys.exit(f"expected exactly 1 replacement, got {count}")
+          path.write_text(new_text)
+          PYEOF
+
+          python3 /tmp/update_formula.py "$TAG" "$SHA256"
+
+          cd /tmp/homebrew-tap
+          if git diff --quiet; then
+            echo "Formula already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "screenplay-scripter ${TAG#v}"
+          git push origin main
