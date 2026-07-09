@@ -298,3 +298,4 @@ chmod +x record-take.sh
   approximated and will not reproduce momentum exactly.
 - **Horizontal scroll discarded**: Only vertical scroll (`dy`) is captured; the
   horizontal component (`dx`) is dropped during recording.
+
