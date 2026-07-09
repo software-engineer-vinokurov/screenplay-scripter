@@ -247,40 +247,20 @@ for i in range(3):
 ## ffmpeg screen-recording wrapper
 
 Capture the screen with `ffmpeg` while `scripter` drives the UI, so the whole
-take is hands-off. Save as `record-take.sh`:
+take is hands-off. Grab `record-take.sh` from this repo:
 
 ```sh
-#!/usr/bin/env bash
-set -euo pipefail
-
-SCRIPT="${1:?usage: record-take.sh SCRIPT.py [OUTPUT.mp4]}"
-OUTPUT="${2:-take.mp4}"
-
-# List devices to find your screen index:
-#   ffmpeg -f avfoundation -list_devices true -i ""
-SCREEN_INDEX="${SCREEN_INDEX:-1}"
-
-# Start the screen capture in the background.
-ffmpeg -y -f avfoundation -capture_cursor 1 -framerate 30 \
-  -i "${SCREEN_INDEX}:none" "${OUTPUT}" &
-FFMPEG_PID=$!
-
-# Give the capture a moment to spin up, then play the script.
-sleep 1
-scripter play "${SCRIPT}"
-
-# Stop ffmpeg cleanly.
-sleep 1
-kill -INT "${FFMPEG_PID}"
-wait "${FFMPEG_PID}" 2>/dev/null || true
-
-echo "Wrote ${OUTPUT}"
+curl -o record-take.sh https://raw.githubusercontent.com/software-engineer-vinokurov/screenplay-scripter/main/record-take.sh
+chmod +x record-take.sh
 ```
+
+If `SCREEN_INDEX` isn't set, the script lists your `ffmpeg`/avfoundation
+screen devices and prompts you to pick one; set it up front to skip the
+prompt.
 
 Run it:
 
 ```sh
-chmod +x record-take.sh
 ./record-take.sh demo.py my-tutorial.mp4
 ```
 
