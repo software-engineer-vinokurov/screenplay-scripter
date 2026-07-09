@@ -21,3 +21,13 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+      - name: Build
+        run: uv build
+
+      - name: Verify installed package works
+        run: |
+          uv venv /tmp/smoke-venv --python 3.12
+          uv pip install --python /tmp/smoke-venv/bin/python dist/*.whl
+          /tmp/smoke-venv/bin/scripter --version
+          /tmp/smoke-venv/bin/scripter --help
