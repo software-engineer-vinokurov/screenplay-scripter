@@ -1,4 +1,5 @@
 import os
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Optional
 import typer
@@ -8,6 +9,22 @@ app = typer.Typer(
     help='Record and replay macOS mouse/keyboard interactions as Python scripts.',
     no_args_is_help=True,
 )
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(_pkg_version('screenplay-scripter'))
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(
+        False, '--version', callback=_version_callback, is_eager=True,
+        help='Show the version and exit.',
+    ),
+) -> None:
+    pass
 
 
 @app.command()
