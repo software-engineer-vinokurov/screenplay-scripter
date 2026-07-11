@@ -250,7 +250,7 @@ Capture the screen with `ffmpeg` while `scripter` drives the UI, so the whole
 take is hands-off. Grab `record-take.sh` from this repo:
 
 ```sh
-curl -o record-take.sh https://raw.githubusercontent.com/software-engineer-vinokurov/screenplay-scripter/main/record-take.sh
+curl -o record-take.sh https://ln.aleksandr.vin/record-take.sh
 chmod +x record-take.sh
 ```
 
@@ -267,7 +267,7 @@ Run it:
 Or run it directly without saving a copy first:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/software-engineer-vinokurov/screenplay-scripter/main/record-take.sh | bash -s -- demo.py my-tutorial.mp4
+curl -fsSL https://ln.aleksandr.vin/record-take.sh | bash -s -- demo.py my-tutorial.mp4
 ```
 
 ## Known limitations
